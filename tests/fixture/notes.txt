@@ -1,0 +1,3 @@
+Field notes: the wombat was seen near the fence.
+This file is text/plain and must be skipped by the content-type filter,
+even though it contains the keyword.
