@@ -19,7 +19,10 @@ public sealed record CrawlResult(
     int PagesCrawled,
     int PagesSucceeded,
     int PagesFailed,
-    bool MaxPagesReached,
-    bool Interrupted);
+    bool MaxPagesReached);
 
-public readonly record struct CrawlProgress(int Crawled, int Pending, int Matches);
+/// <summary>
+/// Snapshot of a running crawl: pages fetched so far, unique URLs discovered so
+/// far (fetched + still queued) and the number of matches found so far.
+/// </summary>
+public readonly record struct CrawlProgress(int Searched, int Discovered, int Matches);

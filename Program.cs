@@ -36,52 +36,49 @@ internal static class Program
             return 2;
         }
 
-        var options = new CrawlOptions
+        // With -o, matches are written to the file the moment they are found, so the
+        // file is as complete as the console even when the user quits mid-scan.
+        TextWriter? exportWriter = null;
+        if (parsed.OutputFile is not null)
         {
-            StartUrl = url,
-            Keyword = keyword,
-            MaxPages = parsed.MaxPages,
-        };
-
-        using var cts = new CancellationTokenSource();
-        var interruptRequested = false;
-        Console.CancelKeyPress += (_, e) =>
-        {
-            if (interruptRequested)
-                return; // second Ctrl+C terminates immediately
-            interruptRequested = true;
-            e.Cancel = true;
-            cts.Cancel();
-        };
-
-        var showProgress = !Console.IsOutputRedirected;
-        Action<CrawlProgress>? onProgress = null;
-        if (showProgress)
-        {
-            var progressLock = new object();
-            onProgress = p =>
+            try
             {
-                var line = $"Searched {p.Crawled} page(s) | pending {p.Pending} | {p.Matches} match(es)";
-                lock (progressLock)
-                {
-                    Console.Write("\r" + line.PadRight(78));
-                }
-            };
+                exportWriter = TextWriter.Synchronized(new StreamWriter(parsed.OutputFile) { AutoFlush = true });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Could not open \"{parsed.OutputFile}\" for writing: {ex.Message}");
+                return 2;
+            }
         }
 
         Console.WriteLine($"Searching for \"{keyword}\" on {url}");
-        Console.WriteLine("Press Ctrl+C to stop and show the results found so far.");
+        Console.WriteLine("Matching URL's are printed as they are found; press Ctrl+C to quit at any time.");
         Console.WriteLine();
 
+        var status = Console.IsOutputRedirected ? null : new StatusPrinter();
+
+        Action<string> onMatch = match =>
+        {
+            if (status is not null)
+                status.WriteLineAbove(match);
+            else
+                Console.WriteLine(match);
+            exportWriter?.WriteLine(match);
+        };
+
+        Action<CrawlProgress>? onProgress = status is null
+            ? null
+            : p => status.Update($"{p.Searched}/{p.Discovered} url's searched for '{keyword}'");
+
+        status?.Update($"0/1 url's searched for '{keyword}'");
+
+        var options = new CrawlOptions { StartUrl = url, Keyword = keyword, MaxPages = parsed.MaxPages };
         using var http = CreateHttpClient(options);
-        var crawler = new Crawler(http, options, onProgress);
-        var result = await crawler.CrawlAsync(cts.Token);
+        var result = await new Crawler(http, options, onProgress, onMatch).CrawlAsync();
 
-        if (showProgress)
-            Console.WriteLine();
-
-        if (result.Interrupted)
-            Console.WriteLine("Scan interrupted — results so far:");
+        status?.Finish();
+        exportWriter?.Dispose();
 
         if (result.PagesSucceeded == 0)
         {
@@ -91,52 +88,80 @@ internal static class Program
         }
 
         Console.WriteLine();
-        if (result.MatchingUrls.Count == 0)
-        {
-            Console.WriteLine($"No pages found containing \"{keyword}\".");
-        }
-        else
-        {
-            Console.WriteLine($"Found {result.MatchingUrls.Count} page(s) containing \"{keyword}\":");
-            foreach (var match in result.MatchingUrls)
-                Console.WriteLine(match);
-        }
-
-        Console.WriteLine();
-        Console.WriteLine($"Searched {result.PagesCrawled} page(s) ({result.PagesFailed} failed).");
+        Console.WriteLine(result.MatchingUrls.Count == 0
+            ? $"No pages found containing \"{keyword}\"."
+            : $"Found {result.MatchingUrls.Count} page(s) containing \"{keyword}\".");
+        Console.WriteLine($"Searched {result.PagesCrawled} url's ({result.PagesFailed} failed).");
         if (result.MaxPagesReached)
             Console.WriteLine($"Stopped at the --max-pages limit ({parsed.MaxPages}).");
 
-        ExportResults(parsed.OutputFile, result.MatchingUrls);
+        if (parsed.OutputFile is not null)
+            Console.WriteLine($"Results written to {Path.GetFullPath(parsed.OutputFile)}");
+        else
+            OfferInteractiveExport(result.MatchingUrls);
+
         return 0;
     }
 
-    private static void ExportResults(string? outputFile, IReadOnlyList<string> urls)
+    /// <summary>
+    /// Keeps a single rewritten status line at the bottom of the terminal while
+    /// match URLs are printed as normal lines above it.
+    /// </summary>
+    private sealed class StatusPrinter
     {
-        if (outputFile is null)
+        private readonly object _gate = new();
+        private string _status = "";
+
+        public void Update(string newStatus)
         {
-            // Offer the export interactively, but never block when stdin is a pipe/file.
-            if (urls.Count == 0 || Console.IsInputRedirected)
-                return;
-
-            Console.Write("Export the results to a .txt file? (y/N) ");
-            var answer = Console.ReadLine();
-            if (answer is null || !answer.Trim().StartsWith('y') && !answer.Trim().StartsWith('Y'))
-                return;
-
-            Console.Write($"File name [{DefaultExportFile}]: ");
-            var name = Console.ReadLine()?.Trim();
-            outputFile = string.IsNullOrEmpty(name) ? DefaultExportFile : name;
+            lock (_gate)
+            {
+                Console.Write("\r" + newStatus.PadRight(_status.Length));
+                _status = newStatus;
+            }
         }
+
+        public void WriteLineAbove(string line)
+        {
+            lock (_gate)
+            {
+                Console.Write("\r" + line.PadRight(_status.Length) + Environment.NewLine + _status);
+            }
+        }
+
+        public void Finish()
+        {
+            lock (_gate)
+            {
+                if (_status.Length > 0)
+                    Console.WriteLine();
+                _status = "";
+            }
+        }
+    }
+
+    private static void OfferInteractiveExport(IReadOnlyList<string> urls)
+    {
+        if (urls.Count == 0 || Console.IsInputRedirected)
+            return;
+
+        Console.Write("Export the results to a .txt file? (y/N) ");
+        var answer = Console.ReadLine()?.Trim();
+        if (answer is null || (!answer.StartsWith('y') && !answer.StartsWith('Y')))
+            return;
+
+        Console.Write($"File name [{DefaultExportFile}]: ");
+        var name = Console.ReadLine()?.Trim();
+        var path = string.IsNullOrEmpty(name) ? DefaultExportFile : name;
 
         try
         {
-            ResultExporter.WriteTo(outputFile, urls);
-            Console.WriteLine($"Results written to {Path.GetFullPath(outputFile)}");
+            ResultExporter.WriteTo(path, urls);
+            Console.WriteLine($"Results written to {Path.GetFullPath(path)}");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Could not write \"{outputFile}\": {ex.Message}");
+            Console.Error.WriteLine($"Could not write \"{path}\": {ex.Message}");
         }
     }
 
@@ -273,11 +298,12 @@ internal static class Program
               Both are asked for interactively when not passed on the command line.
 
             Options:
-              -o, --output <file>   Write the matching URLs to a text file, one per line
+              -o, --output <file>   Write each matching URL to <file> (one per line, written as found)
               --max-pages <n>       Stop after fetching <n> pages (default: unlimited)
               -h, --help            Show this help
 
-            Press Ctrl+C while scanning to stop and show the results found so far.
+            Matching URL's are printed the moment they are found, so it is safe to quit
+            with Ctrl+C at any time — everything found so far is already on screen.
             """);
     }
 }

@@ -3,20 +3,29 @@
 A small .NET 10 command-line tool that crawls a website and lists every page
 on that site whose HTML contains a search word.
 
+Matching URLs are printed **the moment they are found**, with a live status
+line at the bottom, so you can watch the results come in and quit whenever
+you have seen enough:
+
 ```text
 > sitesearcher.exe https://example.com searchword
 
 Searching for "searchword" on https://example.com/
-Press Ctrl+C to stop and show the results found so far.
+Matching URL's are printed as they are found; press Ctrl+C to quit at any time.
 
-Searched 142 page(s) | pending 0 | 9 match(es)
-
-Found 9 page(s) containing "searchword":
 https://example.com/
 https://example.com/about
-...
+https://example.com/blog/some-post
+200/436 url's searched for 'searchword'
+```
 
-Searched 142 page(s) (3 failed).
+When the scan finishes:
+
+```text
+436/436 url's searched for 'searchword'
+
+Found 9 page(s) containing "searchword".
+Searched 436 url's (3 failed).
 Export the results to a .txt file? (y/N)
 ```
 
@@ -30,7 +39,7 @@ Arguments:
   <searchword>  Word to look for in each page's HTML (case-insensitive)
 
 Options:
-  -o, --output <file>   Write the matching URLs to a text file, one per line
+  -o, --output <file>   Write each matching URL to <file> (one per line, written as found)
   --max-pages <n>       Stop after fetching <n> pages (default: unlimited)
   -h, --help            Show help
 ```
@@ -44,21 +53,20 @@ Website URL (e.g. https://example.com): example.com
 Search word: searchword
 ```
 
-### Stopping a scan
+### Quitting early
 
-The crawl runs until it has visited every reachable page on the site. Press
-**Ctrl+C** at any time to stop early — the results found up to that point are
-shown, and can still be exported. A second Ctrl+C aborts immediately.
+The crawl runs until it has visited every reachable page on the site. Since
+every match is printed (and exported) as soon as it is found, pressing
+**Ctrl+C** simply quits — everything found up to that point is already on
+screen, and the status line shows how far the scan got.
 
 ### Exporting results
 
-- Pass `-o results.txt` (or `--output results.txt`) to write the list of
-  matching URLs to a file automatically.
-- Without `-o`, the app offers to export after the scan when anything was
-  found (default file name: `sitesearcher-results.txt`).
-
-The export file contains one URL per line (UTF-8), ready for further
-processing.
+- Pass `-o results.txt` (or `--output results.txt`) to write matching URLs to
+  a file. The file is written live, one URL per line (UTF-8), so it also
+  contains everything found so far if you quit mid-scan.
+- Without `-o`, the app offers to export after a completed scan when anything
+  was found (default file name: `sitesearcher-results.txt`).
 
 ## How it works
 
@@ -83,7 +91,7 @@ Limitations: `robots.txt` is not consulted, JavaScript is not executed
 
 | Code | Meaning |
 |------|---------|
-| 0    | Scan completed (with or without matches), including Ctrl+C stops |
+| 0    | Scan completed (with or without matches) |
 | 1    | No page could be retrieved from the given URL |
 | 2    | Invalid arguments or input |
 
@@ -117,13 +125,14 @@ Use `-r linux-x64` or `-r osx-arm64` for other platforms.
 
 ## Tests
 
-`tests/run-e2e.sh` builds the app and runs it against two local fixture
-sites (a small static site and an endless generated one), covering matching
-rules, exporting, interactive prompts, exit codes, Ctrl+C handling and
-`--max-pages`:
+`tests/SiteSearcher.Tests` is an MSTest project that covers the crawl engine
+in-process and the CLI end-to-end (the real binary is run as a child
+process). The fixture website it crawls is hosted by an in-process Kestrel
+server on a dynamic localhost port — no external tools needed, everything
+runs on Windows, macOS and Linux:
 
 ```bash
-tests/run-e2e.sh
+dotnet test tests/SiteSearcher.Tests
 ```
 
 ## License

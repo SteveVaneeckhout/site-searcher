@@ -7,9 +7,15 @@ namespace SiteSearcher;
 
 /// <summary>
 /// Breadth-first crawler that visits every reachable page on the start URL's host
-/// and records the URLs of pages whose raw HTML contains the keyword.
+/// and records the URLs of pages whose raw HTML contains the keyword. Matches are
+/// reported through <paramref name="onMatch"/> the moment they are found, so the
+/// caller always has the complete list so far even if the process is killed.
 /// </summary>
-public sealed class Crawler(HttpClient http, CrawlOptions options, Action<CrawlProgress>? onProgress = null)
+public sealed class Crawler(
+    HttpClient http,
+    CrawlOptions options,
+    Action<CrawlProgress>? onProgress = null,
+    Action<string>? onMatch = null)
 {
     private readonly Channel<Uri> _queue = Channel.CreateUnbounded<Uri>();
     private readonly ConcurrentDictionary<string, byte> _visited = new();
@@ -17,52 +23,39 @@ public sealed class Crawler(HttpClient http, CrawlOptions options, Action<CrawlP
     private readonly string _siteHost = CanonicalHost(options.StartUrl);
 
     private int _scheduled;
+    private int _discovered;
     private int _inFlight;
     private int _succeeded;
     private int _failed;
     private int _matchCount;
     private volatile bool _capHit;
 
-    public async Task<CrawlResult> CrawlAsync(CancellationToken ct = default)
+    public async Task<CrawlResult> CrawlAsync()
     {
         TryEnqueue(StripFragment(options.StartUrl));
 
         var workers = Enumerable.Range(0, options.MaxConcurrency)
-            .Select(_ => Task.Run(() => WorkerAsync(ct), CancellationToken.None))
+            .Select(_ => Task.Run(WorkerAsync))
             .ToArray();
-
-        var interrupted = false;
-        try
-        {
-            await Task.WhenAll(workers);
-        }
-        catch (OperationCanceledException)
-        {
-            interrupted = true;
-        }
+        await Task.WhenAll(workers);
 
         var succeeded = Volatile.Read(ref _succeeded);
         var failed = Volatile.Read(ref _failed);
         return new CrawlResult(
-            MatchingUrls: _matches.OrderBy(u => u, StringComparer.Ordinal).ToList(),
+            MatchingUrls: _matches.ToList(),
             PagesCrawled: succeeded + failed,
             PagesSucceeded: succeeded,
             PagesFailed: failed,
-            MaxPagesReached: _capHit,
-            Interrupted: interrupted);
+            MaxPagesReached: _capHit);
     }
 
-    private async Task WorkerAsync(CancellationToken ct)
+    private async Task WorkerAsync()
     {
-        await foreach (var url in _queue.Reader.ReadAllAsync(ct))
+        await foreach (var url in _queue.Reader.ReadAllAsync())
         {
             try
             {
-                await ProcessPageAsync(url, ct);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
+                await ProcessPageAsync(url);
             }
             catch
             {
@@ -78,10 +71,10 @@ public sealed class Crawler(HttpClient http, CrawlOptions options, Action<CrawlP
         }
     }
 
-    private async Task ProcessPageAsync(Uri url, CancellationToken ct)
+    private async Task ProcessPageAsync(Uri url)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -107,13 +100,14 @@ public sealed class Crawler(HttpClient http, CrawlOptions options, Action<CrawlP
             return;
         }
 
-        var html = await response.Content.ReadAsStringAsync(ct);
+        var html = await response.Content.ReadAsStringAsync();
         Interlocked.Increment(ref _succeeded);
 
         if (html.Contains(options.Keyword, StringComparison.OrdinalIgnoreCase))
         {
             _matches.Enqueue(url.AbsoluteUri);
             Interlocked.Increment(ref _matchCount);
+            onMatch?.Invoke(url.AbsoluteUri);
         }
 
         var doc = new HtmlDocument();
@@ -142,6 +136,7 @@ public sealed class Crawler(HttpClient http, CrawlOptions options, Action<CrawlP
         }
 
         Interlocked.Increment(ref _inFlight);
+        Interlocked.Increment(ref _discovered);
         return _queue.Writer.TryWrite(url);
     }
 
@@ -149,7 +144,7 @@ public sealed class Crawler(HttpClient http, CrawlOptions options, Action<CrawlP
     {
         onProgress?.Invoke(new CrawlProgress(
             Volatile.Read(ref _succeeded) + Volatile.Read(ref _failed),
-            Volatile.Read(ref _inFlight),
+            Volatile.Read(ref _discovered),
             Volatile.Read(ref _matchCount)));
     }
 
