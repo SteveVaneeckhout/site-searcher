@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SiteSearcher.Tests/SiteSearcher.Tests.csproj" />
+  <Project Path="SiteSearcher/SiteSearcher.csproj" />
+</Solution>
