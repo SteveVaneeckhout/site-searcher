@@ -206,10 +206,10 @@ public sealed class Crawler(
         return extension.Length > 1 && NonHtmlExtensions.Contains(extension[1..].ToLowerInvariant());
     }
 
-    internal static Uri StripFragment(Uri uri)
+    public static Uri StripFragment(Uri uri)
         => string.IsNullOrEmpty(uri.Fragment) ? uri : new Uri(uri.GetLeftPart(UriPartial.Query));
 
-    internal static List<string> ExtractHrefs(HtmlDocument doc)
+    public static List<string> ExtractHrefs(HtmlDocument doc)
     {
         var anchors = doc.DocumentNode.SelectNodes("//a[@href]");
         if (anchors is null)
