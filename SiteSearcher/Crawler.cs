@@ -1,7 +1,7 @@
+using HtmlAgilityPack;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
-using HtmlAgilityPack;
 
 namespace SiteSearcher;
 
@@ -59,6 +59,7 @@ public sealed class Crawler(
             }
             catch
             {
+                System.Diagnostics.Debug.WriteLine($"Failed to process page: {url}");
                 // A page that cannot be fetched or parsed never stops the crawl.
                 Interlocked.Increment(ref _failed);
             }
@@ -79,6 +80,7 @@ public sealed class Crawler(
         if (!response.IsSuccessStatusCode)
         {
             Interlocked.Increment(ref _failed);
+            System.Diagnostics.Debug.WriteLine($"Failed to fetch page: {url}");
             return;
         }
 
@@ -149,13 +151,13 @@ public sealed class Crawler(
     }
 
     /// <summary>Host identity used for the same-site check: lowercased, "www." ignored.</summary>
-    internal static string CanonicalHost(Uri uri)
+    public static string CanonicalHost(Uri uri)
     {
         var host = uri.Host.ToLowerInvariant();
         return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
     }
 
-    internal static bool TryNormalize(Uri baseUri, string rawHref, [NotNullWhen(true)] out Uri? normalized)
+    public static bool TryNormalize(Uri baseUri, string rawHref, [NotNullWhen(true)] out Uri? normalized)
     {
         normalized = null;
 
@@ -178,10 +180,10 @@ public sealed class Crawler(
         return true;
     }
 
-    internal static Uri StripFragment(Uri uri)
+    public static Uri StripFragment(Uri uri)
         => string.IsNullOrEmpty(uri.Fragment) ? uri : new Uri(uri.GetLeftPart(UriPartial.Query));
 
-    internal static List<string> ExtractHrefs(HtmlDocument doc)
+    public static List<string> ExtractHrefs(HtmlDocument doc)
     {
         var anchors = doc.DocumentNode.SelectNodes("//a[@href]");
         if (anchors is null)

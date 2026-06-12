@@ -109,7 +109,7 @@ internal static class Program
     /// </summary>
     private sealed class StatusPrinter
     {
-        private readonly object _gate = new();
+        private readonly Lock _gate = new();
         private string _status = "";
 
         public void Update(string newStatus)

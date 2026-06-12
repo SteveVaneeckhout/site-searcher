@@ -7,16 +7,10 @@
     <Nullable>enable</Nullable>
     <RootNamespace>SiteSearcher</RootNamespace>
     <AssemblyName>sitesearcher</AssemblyName>
-    <!-- The test project lives under tests/; keep its sources and artifacts out of this app's default globs. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <InternalsVisibleTo Include="SiteSearcher.Tests" />
   </ItemGroup>
 
 </Project>

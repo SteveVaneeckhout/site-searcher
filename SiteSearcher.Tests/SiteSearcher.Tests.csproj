@@ -16,11 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.0.1" />
+    <PackageReference Include="MSTest" Version="4.2.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../SiteSearcher.csproj" />
+    <ProjectReference Include="../SiteSearcher/SiteSearcher.csproj" />
   </ItemGroup>
 
   <ItemGroup>
