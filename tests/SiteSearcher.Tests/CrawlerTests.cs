@@ -35,6 +35,8 @@ public sealed class CrawlerTests
         var result = await new Crawler(http, Options(), progress.Enqueue).CrawlAsync();
 
         CollectionAssert.AreEquivalent(ExpectedMatches, result.MatchingUrls.ToArray());
+        // The .pdf/.png/.XLSX links are skipped by extension without a request; if that
+        // filter regresses they would be fetched (404) and all three counts change.
         Assert.AreEqual(8, result.PagesCrawled);   // 7 fixture files + missing.html
         Assert.AreEqual(7, result.PagesSucceeded); // includes notes.txt (fetched, skipped by content type)
         Assert.AreEqual(1, result.PagesFailed);    // missing.html -> 404

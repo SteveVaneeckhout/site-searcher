@@ -75,8 +75,11 @@ screen, and the status line shows how far the scan got.
   (`example.com` and `www.example.com` are treated as the same site).
 - The search word is matched **case-insensitively against the raw HTML** of
   each page, so occurrences in markup, attributes and scripts count too.
-- Only `text/html` / `application/xhtml+xml` responses are scanned; other
-  content types (images, PDFs, plain text, …) are skipped.
+- Links to files with a known non-HTML extension (`.pdf`, `.jpg`, `.png`,
+  `.doc`/`.docx`, `.xls`/`.xlsx` and other images, Office documents, archives,
+  audio/video, css/js, …) are skipped without even being requested.
+- Everything else is fetched, but only `text/html` / `application/xhtml+xml`
+  responses are scanned; other content types are skipped.
 - Redirects are followed; pages that redirect off the site are ignored.
 - `#fragment` links are treated as the same page; `mailto:`, `tel:`,
   `javascript:` and `data:` links are ignored.

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 using HtmlAgilityPack;
@@ -173,9 +174,36 @@ public sealed class Crawler(
             return false;
         if (absolute.Scheme != Uri.UriSchemeHttp && absolute.Scheme != Uri.UriSchemeHttps)
             return false;
+        if (HasNonHtmlExtension(absolute))
+            return false;
 
         normalized = StripFragment(absolute);
         return true;
+    }
+
+    // File types that can never be an HTML page; links to them are skipped without
+    // spending a request. Anything not listed here is still caught by the
+    // content-type check once the response headers arrive.
+    private static readonly FrozenSet<string> NonHtmlExtensions = new[]
+    {
+        // images
+        "jpg", "jpeg", "png", "gif", "webp", "svg", "ico", "bmp", "tif", "tiff", "avif",
+        // documents
+        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf",
+        // archives
+        "zip", "rar", "7z", "gz", "bz2", "tar",
+        // audio and video
+        "mp3", "wav", "flac", "ogg", "m4a", "mp4", "m4v", "avi", "mov", "wmv", "webm", "mkv",
+        // other web assets and binaries
+        "css", "js", "mjs", "json", "xml", "woff", "woff2", "ttf", "otf", "eot",
+        "exe", "msi", "dmg", "apk", "iso",
+    }.ToFrozenSet();
+
+    /// <summary>True when the URL's path ends in a file extension that is known not to be HTML.</summary>
+    internal static bool HasNonHtmlExtension(Uri uri)
+    {
+        var extension = Path.GetExtension(uri.AbsolutePath);
+        return extension.Length > 1 && NonHtmlExtensions.Contains(extension[1..].ToLowerInvariant());
     }
 
     internal static Uri StripFragment(Uri uri)
