@@ -21,6 +21,29 @@ public sealed class UrlRulesTests
         => Assert.IsFalse(Crawler.TryNormalize(Base, href, out _));
 
     [TestMethod]
+    [DataRow("report.pdf")]
+    [DataRow("/files/photo.JPG")]
+    [DataRow("logo.png?v=2")]
+    [DataRow("cv.docx")]
+    [DataRow("old.doc")]
+    [DataRow("data.xls")]
+    [DataRow("Sheet.XLSX?download=1")]
+    [DataRow("archive.zip")]
+    [DataRow("styles.css")]
+    [DataRow("video.mp4#t=10")]
+    public void TryNormalize_RejectsKnownNonHtmlFileExtensions(string href)
+        => Assert.IsFalse(Crawler.TryNormalize(Base, href, out _));
+
+    [TestMethod]
+    [DataRow("page.html")]
+    [DataRow("page.php")]
+    [DataRow("page")]
+    [DataRow("page.html?id=1")]
+    [DataRow("/downloads/")]
+    public void TryNormalize_AcceptsHtmlAndExtensionlessPaths(string href)
+        => Assert.IsTrue(Crawler.TryNormalize(Base, href, out _));
+
+    [TestMethod]
     public void TryNormalize_ResolvesParentRelativePaths()
     {
         Assert.IsTrue(Crawler.TryNormalize(Base, "../about.html", out var uri));
