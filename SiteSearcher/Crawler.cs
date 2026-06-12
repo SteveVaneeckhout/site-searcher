@@ -150,13 +150,13 @@ public sealed class Crawler(
     }
 
     /// <summary>Host identity used for the same-site check: lowercased, "www." ignored.</summary>
-    internal static string CanonicalHost(Uri uri)
+    public static string CanonicalHost(Uri uri)
     {
         var host = uri.Host.ToLowerInvariant();
         return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
     }
 
-    internal static bool TryNormalize(Uri baseUri, string rawHref, [NotNullWhen(true)] out Uri? normalized)
+    public static bool TryNormalize(Uri baseUri, string rawHref, [NotNullWhen(true)] out Uri? normalized)
     {
         normalized = null;
 
