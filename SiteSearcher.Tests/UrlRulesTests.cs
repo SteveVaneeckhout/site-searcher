@@ -87,4 +87,24 @@ public sealed class UrlRulesTests
         doc.LoadHtml("<html><body><p>no links here</p></body></html>");
         Assert.IsEmpty(Crawler.ExtractHrefs(doc));
     }
+
+    [TestMethod]
+    [DataRow("<p>Sailing with P&amp;O today</p>")]  // named entity
+    [DataRow("<p>Sailing with P&#38;O today</p>")]  // decimal entity
+    [DataRow("<p>Sailing with P&#x26;O today</p>")] // hex entity
+    [DataRow("<p>Sailing with P&O today</p>")]      // literal ampersand
+    public void ContainsKeyword_MatchesEntityEncodedAmpersand(string html)
+        => Assert.IsTrue(Crawler.ContainsKeyword(html, "P&O"));
+
+    [TestMethod]
+    public void ContainsKeyword_IsCaseInsensitive()
+        => Assert.IsTrue(Crawler.ContainsKeyword("<p>book with p&amp;o</p>", "P&O"));
+
+    [TestMethod]
+    public void ContainsKeyword_MatchesInsideRawHtmlLikeScripts()
+        => Assert.IsTrue(Crawler.ContainsKeyword("<script>var a=\"wombat\";</script>", "wombat"));
+
+    [TestMethod]
+    public void ContainsKeyword_ReturnsFalseWhenAbsent()
+        => Assert.IsFalse(Crawler.ContainsKeyword("<p>nothing here</p>", "P&O"));
 }
