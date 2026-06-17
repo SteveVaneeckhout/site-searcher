@@ -104,7 +104,7 @@ public sealed class Crawler(
         var html = await response.Content.ReadAsStringAsync();
         Interlocked.Increment(ref _succeeded);
 
-        if (html.Contains(options.Keyword, StringComparison.OrdinalIgnoreCase))
+        if (ContainsKeyword(html, options.Keyword))
         {
             _matches.Enqueue(url.AbsoluteUri);
             Interlocked.Increment(ref _matchCount);
@@ -154,6 +154,21 @@ public sealed class Crawler(
     {
         var host = uri.Host.ToLowerInvariant();
         return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
+    }
+
+    /// <summary>
+    /// True if the keyword occurs in the page, comparing against both the raw HTML
+    /// and an HTML-entity-decoded copy so terms like "P&amp;O" still match source that
+    /// encodes the ampersand as "P&amp;amp;O" (or &amp;#38; / &amp;#x26;).
+    /// </summary>
+    public static bool ContainsKeyword(string html, string keyword)
+    {
+        if (html.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var decoded = HtmlEntity.DeEntitize(html);
+        return decoded is not null
+            && decoded.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool TryNormalize(Uri baseUri, string rawHref, [NotNullWhen(true)] out Uri? normalized)
