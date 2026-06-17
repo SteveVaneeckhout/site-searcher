@@ -36,6 +36,12 @@ internal static class Program
             return 2;
         }
 
+        // In fully interactive mode (neither URL nor search word given as arguments),
+        // also offer fuzzy matching — unless it was already requested with --fuzzy.
+        var fuzzy = parsed.Fuzzy;
+        if (!fuzzy && parsed.Url is null && parsed.Keyword is null)
+            fuzzy = PromptForFuzzy();
+
         // With -o, matches are written to the file the moment they are found, so the
         // file is as complete as the console even when the user quits mid-scan.
         TextWriter? exportWriter = null;
@@ -52,7 +58,7 @@ internal static class Program
             }
         }
 
-        Console.WriteLine($"Searching for \"{keyword}\" on {url}{(parsed.Fuzzy ? " (fuzzy)" : "")}");
+        Console.WriteLine($"Searching for \"{keyword}\" on {url}{(fuzzy ? " (fuzzy)" : "")}");
         Console.WriteLine("Matching URL's are printed as they are found; press Ctrl+C to quit at any time.");
         Console.WriteLine();
 
@@ -73,7 +79,7 @@ internal static class Program
 
         status?.Update($"0/1 url's searched for '{keyword}'");
 
-        var options = new CrawlOptions { StartUrl = url, Keyword = keyword, MaxPages = parsed.MaxPages, Fuzzy = parsed.Fuzzy };
+        var options = new CrawlOptions { StartUrl = url, Keyword = keyword, MaxPages = parsed.MaxPages, Fuzzy = fuzzy };
         using var http = CreateHttpClient(options);
         var result = await new Crawler(http, options, onProgress, onMatch).CrawlAsync();
 
@@ -287,6 +293,13 @@ internal static class Program
                 return line;
             Console.WriteLine("Please enter a non-empty search word.");
         }
+    }
+
+    private static bool PromptForFuzzy()
+    {
+        Console.Write("Use fuzzy matching to tolerate typos? (y/N) ");
+        var answer = Console.ReadLine()?.Trim();
+        return answer is not null && (answer.StartsWith('y') || answer.StartsWith('Y'));
     }
 
     private static void PrintUsage(TextWriter writer)

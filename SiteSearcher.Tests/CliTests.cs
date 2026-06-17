@@ -126,6 +126,29 @@ public sealed class CliTests
     }
 
     [TestMethod]
+    [Timeout(120_000)]
+    public async Task PromptMode_OffersFuzzyAndAnswerEnablesIt()
+    {
+        // Pure interactive launch (no args): URL, then a misspelled word, then "y" to fuzzy.
+        var run = await AppProcess.RunAsync([], stdin: $"{StartUrl}\nwombatt\ny\n");
+
+        Assert.AreEqual(0, run.ExitCode, run.Stderr);
+        StringAssert.Contains(run.Stdout, "fuzzy matching");          // the prompt was shown
+        StringAssert.Contains(run.Stdout, "(fuzzy)");                 // fuzzy was enabled
+        StringAssert.Contains(run.Stdout, $"{BaseUrl}/contact.html"); // and matched the real word
+    }
+
+    [TestMethod]
+    [Timeout(120_000)]
+    public async Task PromptMode_DecliningFuzzyKeepsExactSearch()
+    {
+        var run = await AppProcess.RunAsync([], stdin: $"{StartUrl}\nwombatt\nn\n");
+
+        Assert.AreEqual(0, run.ExitCode, run.Stderr);
+        StringAssert.Contains(run.Stdout, "No pages found containing");
+    }
+
+    [TestMethod]
     [Timeout(60_000)]
     public async Task Help_ListsFuzzyOption()
     {

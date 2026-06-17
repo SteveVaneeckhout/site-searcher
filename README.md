@@ -52,7 +52,11 @@ for them at startup:
 > sitesearcher.exe
 Website URL (e.g. https://example.com): example.com
 Search word: searchword
+Use fuzzy matching to tolerate typos? (y/N)
 ```
+
+The fuzzy prompt is only shown in this interactive mode; on the command line use
+`--fuzzy` instead.
 
 ### Quitting early
 
