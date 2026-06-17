@@ -52,7 +52,7 @@ internal static class Program
             }
         }
 
-        Console.WriteLine($"Searching for \"{keyword}\" on {url}");
+        Console.WriteLine($"Searching for \"{keyword}\" on {url}{(parsed.Fuzzy ? " (fuzzy)" : "")}");
         Console.WriteLine("Matching URL's are printed as they are found; press Ctrl+C to quit at any time.");
         Console.WriteLine();
 
@@ -73,7 +73,7 @@ internal static class Program
 
         status?.Update($"0/1 url's searched for '{keyword}'");
 
-        var options = new CrawlOptions { StartUrl = url, Keyword = keyword, MaxPages = parsed.MaxPages };
+        var options = new CrawlOptions { StartUrl = url, Keyword = keyword, MaxPages = parsed.MaxPages, Fuzzy = parsed.Fuzzy };
         using var http = CreateHttpClient(options);
         var result = await new Crawler(http, options, onProgress, onMatch).CrawlAsync();
 
@@ -180,13 +180,14 @@ internal static class Program
         return http;
     }
 
-    private sealed record CliArgs(Uri? Url, string? Keyword, string? OutputFile, int? MaxPages, bool ShowHelp);
+    private sealed record CliArgs(Uri? Url, string? Keyword, string? OutputFile, int? MaxPages, bool Fuzzy, bool ShowHelp);
 
     private static CliArgs? ParseArgs(string[] args, out string? error)
     {
         error = null;
         string? output = null;
         int? maxPages = null;
+        var fuzzy = false;
         var positionals = new List<string>();
 
         for (var i = 0; i < args.Length; i++)
@@ -194,7 +195,11 @@ internal static class Program
             switch (args[i])
             {
                 case "-h" or "--help" or "/?":
-                    return new CliArgs(null, null, null, null, ShowHelp: true);
+                    return new CliArgs(null, null, null, null, Fuzzy: false, ShowHelp: true);
+
+                case "--fuzzy":
+                    fuzzy = true;
+                    break;
 
                 case "-o" or "--output":
                     if (++i >= args.Length)
@@ -238,7 +243,7 @@ internal static class Program
         }
 
         var keyword = positionals.Count == 2 ? positionals[1] : null;
-        return new CliArgs(url, keyword, output, maxPages, ShowHelp: false);
+        return new CliArgs(url, keyword, output, maxPages, fuzzy, ShowHelp: false);
     }
 
     private static bool TryParseUrl(string input, [NotNullWhen(true)] out Uri? uri)
@@ -300,6 +305,7 @@ internal static class Program
             Options:
               -o, --output <file>   Write each matching URL to <file> (one per line, written as found)
               --max-pages <n>       Stop after fetching <n> pages (default: unlimited)
+              --fuzzy               Typo-tolerant matching: find words within a small edit distance
               -h, --help            Show this help
 
             Matching URL's are printed the moment they are found, so it is safe to quit

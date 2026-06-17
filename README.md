@@ -41,6 +41,7 @@ Arguments:
 Options:
   -o, --output <file>   Write each matching URL to <file> (one per line, written as found)
   --max-pages <n>       Stop after fetching <n> pages (default: unlimited)
+  --fuzzy               Typo-tolerant matching: find words within a small edit distance
   -h, --help            Show help
 ```
 
@@ -75,6 +76,11 @@ screen, and the status line shows how far the scan got.
   (`example.com` and `www.example.com` are treated as the same site).
 - The search word is matched **case-insensitively against the raw HTML** of
   each page, so occurrences in markup, attributes and scripts count too.
+- With `--fuzzy`, matching is typo-tolerant: each word of the search term is
+  compared against every word in the page within a small Levenshtein edit
+  distance (0 for 1–2 letter terms, 1 for 3–5, 2 for longer), so `wombatt`
+  still finds pages containing `wombat`. A multi-word search term matches a
+  page only when every word is found.
 - Links to files with a known non-HTML extension (`.pdf`, `.jpg`, `.png`,
   `.doc`/`.docx`, `.xls`/`.xlsx` and other images, Office documents, archives,
   audio/video, css/js, …) are skipped without even being requested.
