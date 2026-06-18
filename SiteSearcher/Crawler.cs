@@ -104,7 +104,10 @@ public sealed class Crawler(
         var html = await response.Content.ReadAsStringAsync();
         Interlocked.Increment(ref _succeeded);
 
-        if (ContainsKeyword(html, options.Keyword))
+        var matched = options.Fuzzy
+            ? FuzzyMatcher.ContainsFuzzy(html, options.Keyword)
+            : ContainsKeyword(html, options.Keyword);
+        if (matched)
         {
             _matches.Enqueue(url.AbsoluteUri);
             Interlocked.Increment(ref _matchCount);

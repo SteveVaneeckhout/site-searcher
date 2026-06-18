@@ -8,6 +8,9 @@ public sealed record CrawlOptions
     /// <summary>Maximum number of pages to fetch; null means unlimited.</summary>
     public int? MaxPages { get; init; }
 
+    /// <summary>When true, match the keyword with typo-tolerant fuzzy search instead of an exact substring.</summary>
+    public bool Fuzzy { get; init; }
+
     public int MaxConcurrency { get; init; } = 8;
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public string UserAgent { get; init; } =

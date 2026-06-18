@@ -111,6 +111,55 @@ public sealed class CliTests
 
     [TestMethod]
     [Timeout(120_000)]
+    public async Task Fuzzy_FindsMisspelledKeyword()
+    {
+        // "wombatt" is not a substring on any page, so exact search finds nothing,
+        // but fuzzy (--fuzzy) matches the real "wombat"/"WOMBAT" pages within edit distance.
+        var exact = await AppProcess.RunAsync([StartUrl, "wombatt"]);
+        Assert.AreEqual(0, exact.ExitCode, exact.Stderr);
+        StringAssert.Contains(exact.Stdout, "No pages found containing");
+
+        var fuzzy = await AppProcess.RunAsync([StartUrl, "wombatt", "--fuzzy"]);
+        Assert.AreEqual(0, fuzzy.ExitCode, fuzzy.Stderr);
+        StringAssert.Contains(fuzzy.Stdout, "(fuzzy)");
+        StringAssert.Contains(fuzzy.Stdout, $"{BaseUrl}/contact.html");
+    }
+
+    [TestMethod]
+    [Timeout(120_000)]
+    public async Task PromptMode_OffersFuzzyAndAnswerEnablesIt()
+    {
+        // Pure interactive launch (no args): URL, then a misspelled word, then "y" to fuzzy.
+        var run = await AppProcess.RunAsync([], stdin: $"{StartUrl}\nwombatt\ny\n");
+
+        Assert.AreEqual(0, run.ExitCode, run.Stderr);
+        StringAssert.Contains(run.Stdout, "fuzzy matching");          // the prompt was shown
+        StringAssert.Contains(run.Stdout, "(fuzzy)");                 // fuzzy was enabled
+        StringAssert.Contains(run.Stdout, $"{BaseUrl}/contact.html"); // and matched the real word
+    }
+
+    [TestMethod]
+    [Timeout(120_000)]
+    public async Task PromptMode_DecliningFuzzyKeepsExactSearch()
+    {
+        var run = await AppProcess.RunAsync([], stdin: $"{StartUrl}\nwombatt\nn\n");
+
+        Assert.AreEqual(0, run.ExitCode, run.Stderr);
+        StringAssert.Contains(run.Stdout, "No pages found containing");
+    }
+
+    [TestMethod]
+    [Timeout(60_000)]
+    public async Task Help_ListsFuzzyOption()
+    {
+        var run = await AppProcess.RunAsync(["--help"]);
+
+        Assert.AreEqual(0, run.ExitCode, run.Stderr);
+        StringAssert.Contains(run.Stdout, "--fuzzy");
+    }
+
+    [TestMethod]
+    [Timeout(120_000)]
     public async Task MaxPages_PrintsLimitNotice()
     {
         var run = await AppProcess.RunAsync([StartUrl, "wombat", "--max-pages", "2"]);
